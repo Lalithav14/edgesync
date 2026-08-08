@@ -103,3 +103,4 @@ You should see an AI-generated summary once 5 readings have been posted.
 - Replace the in-memory write counter in the ingest Lambda (resets on cold
   start) with a durable counter or a fixed time-based trigger.
 # edgesync
+# edgesync
