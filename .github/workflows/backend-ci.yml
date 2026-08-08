@@ -1,0 +1,31 @@
+name: Backend CI
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install boto3 flake8 pytest
+
+      - name: Lint
+        run: flake8 backend/lambda_ingest backend/lambda_insight --max-line-length=100
+
+      - name: Validate SAM template
+        uses: aws-actions/setup-sam@v2
+      - run: sam validate --template backend/template.yaml --lint

@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: EdgeSync backend - ingestion + async AI insight pipeline
+
+Parameters:
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Description: Anthropic API key used by the insight Lambda
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 15
+    MemorySize: 256
+
+Resources:
+
+  ReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: device_id
+          AttributeType: S
+        - AttributeName: ts
+          AttributeType: N
+      KeySchema:
+        - AttributeName: device_id
+          KeyType: HASH
+        - AttributeName: ts
+          KeyType: RANGE
+
+  InsightsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: device_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: device_id
+          KeyType: HASH
+
+  InsightQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 30
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda_ingest/
+      Handler: app.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReadingsTable
+          INSIGHT_QUEUE_URL: !Ref InsightQueue
+          WRITE_BATCH_SIZE: "5"
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref ReadingsTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt InsightQueue.QueueName
+      Events:
+        PostReading:
+          Type: Api
+          Properties:
+            Path: /readings
+            Method: post
+
+  InsightGenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda_insight/
+      Handler: generate.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ReadingsTable
+          INSIGHTS_TABLE_NAME: !Ref InsightsTable
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          LOOKBACK_READINGS: "20"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReadingsTable
+        - DynamoDBWritePolicy:
+            TableName: !Ref InsightsTable
+        - SQSPollerPolicy:
+            QueueName: !GetAtt InsightQueue.QueueName
+      Events:
+        QueueTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt InsightQueue.Arn
+            BatchSize: 1
+
+  GetInsightFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda_insight/
+      Handler: get_insight.handler
+      Environment:
+        Variables:
+          INSIGHTS_TABLE_NAME: !Ref InsightsTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref InsightsTable
+      Events:
+        GetInsight:
+          Type: Api
+          Properties:
+            Path: /insights/{deviceId}
+            Method: get
+
+  IngestErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alerts if the ingestion Lambda starts erroring
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref IngestFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the API - put this in the Android app's ApiService.kt
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"

@@ -1,0 +1,17 @@
+# Android
+android/.gradle/
+android/local.properties
+android/.idea/
+android/*/build/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+*.iml
+
+# Python / SAM
+backend/.aws-sam/
+__pycache__/
+*.pyc
+
+# General
+.DS_Store
