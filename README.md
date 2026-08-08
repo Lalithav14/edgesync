@@ -23,7 +23,7 @@ ESP32 (BLE) --> Android App --> API Gateway --> Ingest Lambda --> DynamoDB (read
                                 Android App <-- API Gateway <-- Get-Insight Lambda
 ```
 
-**Why this shape:**
+**Why this shape??:**
 - **DynamoDB over RDS** — sensor writes are high-frequency, simple key-value
   access (`device_id` + `ts`), no joins needed. Pay-per-request billing keeps
   it free-tier friendly for a side project.
@@ -45,9 +45,6 @@ tools/              simulate_device.py - test the pipeline without hardware
 .github/workflows/  CI for both Android and backend
 ```
 
-## Getting started (code-first, hardware later)
-
-You don't need the ESP32 flashed to build and test everything else.
 
 ### 1. Deploy the backend
 ```bash
@@ -69,14 +66,14 @@ curl <ApiUrl>/insights/sim-device-1
 ```
 You should see an AI-generated summary once 5 readings have been posted.
 
-### 3. Run the Android app (simulated mode, no hardware needed)
+### 3. Run the Android app (simulated mode)
 1. Open `android/` in Android Studio.
 2. In `network/ApiService.kt`, replace `BASE_URL` with your `ApiUrl` from step 1.
 3. Run on an emulator or device. `MainActivity` starts in simulated mode by
    default (`useSimulated = true`), so you'll see live fake readings and,
    after ~15-30s, an AI insight — no BLE or ESP32 required yet.
 
-### 4. Hardware, once you're ready
+### 4. Hardware
 1. Flash `firmware/esp32_ble_sensor/esp32_ble_sensor.ino` to your ESP32
    (Arduino IDE, board = your ESP32 dev board). It starts in
    `USE_FAKE_SENSOR` mode so you can verify BLE broadcast before wiring a
@@ -95,12 +92,5 @@ You should see an AI-generated summary once 5 readings have been posted.
 - `.github/workflows/backend-ci.yml` — lints and validates the SAM template
   on every push.
 
-## What I'd improve with more time
-- Real backpressure handling if BLE reconnects rapidly (currently a naive
-  ring buffer).
-- Batch DynamoDB writes instead of one `put_item` per reading.
-- Auth on the API (currently open) — API keys or Cognito.
-- Replace the in-memory write counter in the ingest Lambda (resets on cold
-  start) with a durable counter or a fixed time-based trigger.
-# edgesync
-# edgesync
+
+
